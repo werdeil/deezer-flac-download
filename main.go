@@ -650,6 +650,24 @@ func getComposer(song resSongInfoData) string {
 	}
 }
 
+// extractYear returns the 4-digit year from a date string if possible.
+// It handles formats like "YYYY-MM-DD" or "YYYY" and returns an empty
+// string when a year cannot be determined.
+func extractYear(dateStr string) string {
+	dateStr = strings.TrimSpace(dateStr)
+	if len(dateStr) >= 4 {
+		year := dateStr[:4]
+		// basic sanity check: first 4 chars are digits
+		for _, r := range year {
+			if r < '0' || r > '9' {
+				return ""
+			}
+		}
+		return year
+	}
+	return ""
+}
+
 func SanitizePath(rawPath string) string {
 	cleanPath := filepath.Clean(rawPath)
 	replacements := map[string]string{
@@ -900,8 +918,13 @@ func addID3Tags(song resSongInfoData, mp3Path string, coverPath string, album re
 	if song.Copyright != "" {
 		tag.AddTextFrame(tag.CommonID("Copyright message"), tag.DefaultEncoding(), song.Copyright)
 	}
-	if song.PhysicalReleaseDate != "" {
-		tag.SetYear(song.PhysicalReleaseDate)
+	// Prefer album release year, fallback to song physical release date
+	year := extractYear(album.ReleaseDate)
+	if year == "" {
+		year = extractYear(song.PhysicalReleaseDate)
+	}
+	if year != "" {
+		tag.SetYear(year)
 	}
 	if song.Isrc != "" {
 		tag.AddTextFrame("TSRC", tag.DefaultEncoding(), song.Isrc)
@@ -955,7 +978,17 @@ func addTags(song resSongInfoData, path string, album resAlbum) error {
 	cmts.Add("TRACKNUMBER", song.TrackNumber)
 	cmts.Add("DISCNUMBER", song.DiskNumber)
 	cmts.Add("COPYRIGHT", song.Copyright)
-	cmts.Add("DATE", song.PhysicalReleaseDate)
+	// Prefer album release year, fallback to song physical release date
+	year := extractYear(album.ReleaseDate)
+	if year == "" {
+		year = extractYear(song.PhysicalReleaseDate)
+	}
+	if year != "" {
+		cmts.Add("DATE", year)
+	} else {
+		// keep original value if no year could be extracted
+		cmts.Add("DATE", song.PhysicalReleaseDate)
+	}
 	cmts.Add("ISRC", song.Isrc)
 	cmtsmeta := cmts.Marshal()
 	if idx > 0 {
