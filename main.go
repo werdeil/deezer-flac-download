@@ -668,6 +668,26 @@ func extractYear(dateStr string) string {
 	return ""
 }
 
+// getAlbumGenres returns a comma-separated list of genre names from the album.
+// Falls back to album.Label if no genre entries are present.
+func getAlbumGenres(album resAlbum) string {
+	if len(album.Genres.Data) > 0 {
+		names := make([]string, 0, len(album.Genres.Data))
+		for _, g := range album.Genres.Data {
+			if strings.TrimSpace(g.Name) != "" {
+				names = append(names, g.Name)
+			}
+		}
+		if len(names) > 0 {
+			return strings.Join(names, ", ")
+		}
+	}
+	if strings.TrimSpace(album.Label) != "" {
+		return album.Label
+	}
+	return ""
+}
+
 func SanitizePath(rawPath string) string {
 	cleanPath := filepath.Clean(rawPath)
 	replacements := map[string]string{
@@ -902,12 +922,17 @@ func addID3Tags(song resSongInfoData, mp3Path string, coverPath string, album re
 	artist := getArtist(song)
 	composer := getComposer(song)
 
+	genre := getAlbumGenres(album)
+
 	tag.SetTitle(title)
 	tag.SetAlbum(song.AlbTitle)
 	tag.SetArtist(artist)
 	tag.AddTextFrame(tag.CommonID("Album artist"), tag.DefaultEncoding(), album.Artist.Name)
 	if composer != "" {
 		tag.AddTextFrame(tag.CommonID("Composer"), tag.DefaultEncoding(), composer)
+	}
+	if genre != "" {
+		tag.AddTextFrame(tag.CommonID("Content type"), tag.DefaultEncoding(), genre)
 	}
 	if song.TrackNumber != "" {
 		tag.AddTextFrame(tag.CommonID("Track number/Position in set"), tag.DefaultEncoding(), song.TrackNumber)
@@ -978,6 +1003,11 @@ func addTags(song resSongInfoData, path string, album resAlbum) error {
 	cmts.Add("TRACKNUMBER", song.TrackNumber)
 	cmts.Add("DISCNUMBER", song.DiskNumber)
 	cmts.Add("COPYRIGHT", song.Copyright)
+	// Add genre (from album) to Vorbis comments
+	genre := getAlbumGenres(album)
+	if genre != "" {
+		cmts.Add("GENRE", genre)
+	}
 	// Prefer album release year, fallback to song physical release date
 	year := extractYear(album.ReleaseDate)
 	if year == "" {
