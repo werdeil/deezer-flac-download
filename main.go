@@ -84,15 +84,15 @@ type resTracks struct {
 }
 
 type resSongInfoArtist struct {
-	ArtId             string        `json:"ART_ID"`
-	RoleId            string        `json:"ROLE_ID"`
-	ArtistsSongsOrder string        `json:"ARTISTS_SONGS_ORDER"`
-	ArtName           string        `json:"ART_NAME"`
-	ArtistIsDummy     bool          `json:"ARTIST_IS_DUMMY"`
-	ArtPicture        string        `json:"ART_PICTURE"`
-	Rank              string        `json:"RANK"`
-	Locales           []interface{} `json:"LOCALES"`
-	Type              string        `json:"__TYPE__"`
+	ArtId             string      `json:"ART_ID"`
+	RoleId            string      `json:"ROLE_ID"`
+	ArtistsSongsOrder string      `json:"ARTISTS_SONGS_ORDER"`
+	ArtName           string      `json:"ART_NAME"`
+	ArtistIsDummy     bool        `json:"ARTIST_IS_DUMMY"`
+	ArtPicture        string      `json:"ART_PICTURE"`
+	Rank              string      `json:"RANK"`
+	Locales           interface{} `json:"LOCALES"`
+	Type              string      `json:"__TYPE__"`
 }
 
 type resSongInfoMedia struct {
@@ -364,6 +364,14 @@ type resAlbum struct {
 	Tracks                resAlbumTracks        `json:"tracks"`
 }
 
+type resPlaylist struct {
+	ID        int       `json:"id"`
+	Title     string    `json:"title"`
+	Picture   string    `json:"picture"`
+	PictureXl string    `json:"picture_xl"`
+	Tracks    resTracks `json:"tracks"`
+}
+
 type resPing struct {
 	Error   []string `json:"error"`
 	Results struct {
@@ -423,11 +431,7 @@ func makeReq(method, url string, body io.Reader, config configuration) (*http.Re
 	}
 	lastReqTime = time.Now().UnixNano()
 
-	shortUrl := url
-	if len(shortUrl) > 80 {
-		shortUrl = shortUrl[:80] + "..."
-	}
-	log.Printf("%s %s\n", method, shortUrl)
+	// reduce verbosity: do not log every request URL
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err
@@ -468,7 +472,11 @@ func getFavorites(userId string, config configuration) (resTracks, error) {
 
 	if res.StatusCode != 200 {
 		bytes, _ := io.ReadAll(res.Body)
-		log.Println(string(bytes))
+		bstr := string(bytes)
+		if len(bstr) > 200 {
+			bstr = bstr[:200] + "..."
+		}
+		log.Printf("non-200 response body (truncated): %s", bstr)
 		return resTracks{}, fmt.Errorf("got status code %d", res.StatusCode)
 	}
 
@@ -488,7 +496,11 @@ func getSongInfo(id int64, config configuration) (resSongInfo, error) {
 
 	if res.StatusCode != 200 {
 		bytes, _ := io.ReadAll(res.Body)
-		log.Println(string(bytes))
+		bstr := string(bytes)
+		if len(bstr) > 200 {
+			bstr = bstr[:200] + "..."
+		}
+		log.Printf("non-200 response body (truncated): %s", bstr)
 		return resSongInfo{}, fmt.Errorf("got status code %d", res.StatusCode)
 	}
 
@@ -516,7 +528,11 @@ func getAlbum(albumId string, config configuration) (resAlbum, error) {
 
 	if res.StatusCode != 200 {
 		bytes, _ := io.ReadAll(res.Body)
-		log.Println(string(bytes))
+		bstr := string(bytes)
+		if len(bstr) > 200 {
+			bstr = bstr[:200] + "..."
+		}
+		log.Printf("non-200 response body (truncated): %s", bstr)
 		return resAlbum{}, fmt.Errorf("got status code %d", res.StatusCode)
 	}
 
@@ -536,7 +552,11 @@ func getAlbumSongs(albumId string, config configuration) (resAlbumInfo, error) {
 
 	if res.StatusCode != 200 {
 		bytes, _ := io.ReadAll(res.Body)
-		log.Println(string(bytes))
+		bstr := string(bytes)
+		if len(bstr) > 200 {
+			bstr = bstr[:200] + "..."
+		}
+		log.Printf("non-200 response body (truncated): %s", bstr)
 		return resAlbumInfo{}, fmt.Errorf("got status code %d", res.StatusCode)
 	}
 
@@ -555,6 +575,311 @@ func getAlbumSongs(albumId string, config configuration) (resAlbumInfo, error) {
 	return albumInfo, nil
 }
 
+// getPlaylist fetches playlist metadata and its full track list.
+func getPlaylist(playlistId string, config configuration) (resPlaylist, error) {
+	// Fetch playlist page like albums to reuse same ARL cookie and parsing
+	var playlist resPlaylist
+	apiUrl := fmt.Sprintf("https://api.deezer.com/playlist/%s?access_token=%s", playlistId, config.LicenseToken)
+	res, err := makeReq("GET", apiUrl, nil, config)
+	if err != nil {
+		return resPlaylist{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode == 200 {
+		bodyBytes, _ := io.ReadAll(res.Body)
+		if err := json.NewDecoder(bytes.NewReader(bodyBytes)).Decode(&playlist); err == nil {
+			// if API returned tracks, return it
+			if playlist.Tracks.Total > 0 || len(playlist.Tracks.Data) > 0 {
+				return playlist, nil
+			}
+		}
+		// fall through to webpage parsing below
+	}
+	// Fallback: fetch playlist page like albums to reuse ARL cookie and parsing
+	pageUrl := fmt.Sprintf("https://www.deezer.com/de/playlist/%s", playlistId)
+	resPage, err := makeReq("GET", pageUrl, nil, config)
+	if err != nil {
+		return resPlaylist{}, err
+	}
+	defer resPage.Body.Close()
+
+	if resPage.StatusCode == 200 {
+		bodyBytes, _ := io.ReadAll(resPage.Body)
+		s := string(bodyBytes)
+
+		startMarker := `window.__DZR_APP_STATE__ = `
+		endMarker := `</script>`
+		startIdx := strings.Index(s, startMarker)
+		if startIdx >= 0 {
+			endIdx := strings.Index(s[startIdx:], endMarker)
+			if endIdx >= 0 {
+				sData := s[startIdx+len(startMarker) : startIdx+endIdx]
+				var generic interface{}
+				if err := json.NewDecoder(strings.NewReader(sData)).Decode(&generic); err == nil {
+					// try to find playlist title in parsed state
+					var foundTitle string
+					var walkTitle func(interface{}) bool
+					walkTitle = func(n interface{}) bool {
+						switch v := n.(type) {
+						case map[string]interface{}:
+							// common keys: "PLAYLIST" or objects with "TITLE"
+							if t, ok := v["PLAYLIST"]; ok {
+								if mp, ok2 := t.(map[string]interface{}); ok2 {
+									if title, ok3 := mp["TITLE"].(string); ok3 {
+										foundTitle = title
+										return true
+									}
+									if title, ok3 := mp["title"].(string); ok3 {
+										foundTitle = title
+										return true
+									}
+								}
+							}
+							if title, ok := v["TITLE"].(string); ok && foundTitle == "" {
+								foundTitle = title
+								return true
+							}
+							if title, ok := v["title"].(string); ok && foundTitle == "" {
+								foundTitle = title
+								return true
+							}
+							for _, val := range v {
+								if walkTitle(val) {
+									return true
+								}
+							}
+						case []interface{}:
+							for _, el := range v {
+								if walkTitle(el) {
+									return true
+								}
+							}
+						}
+						return false
+					}
+					walkTitle(generic)
+					playlist.Title = foundTitle
+				}
+			}
+		}
+		// get tracks using the same page parsing approach
+		tracks, err2 := getPlaylistSongs(playlistId, config)
+		if err2 == nil {
+			playlist.Tracks = tracks
+		}
+		return playlist, nil
+	}
+
+	// get tracks using the same page parsing approach
+	tracks, err := getPlaylistSongs(playlistId, config)
+	if err == nil {
+		playlist.Tracks = tracks
+	}
+
+	return playlist, nil
+}
+
+// getPlaylistSongs parses the public playlist page and extracts track list
+func getPlaylistSongs(playlistId string, config configuration) (resTracks, error) {
+	url := fmt.Sprintf("https://www.deezer.com/playlist/%s", playlistId)
+	res, err := makeReq("GET", url, nil, config)
+	if err != nil {
+		return resTracks{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		bytes, _ := io.ReadAll(res.Body)
+		bstr := string(bytes)
+		if len(bstr) > 200 {
+			bstr = bstr[:200] + "..."
+		}
+		log.Printf("non-200 playlist page body (truncated): %s", bstr)
+		return resTracks{}, fmt.Errorf("got status code %d", res.StatusCode)
+	}
+
+	bytesBody, _ := io.ReadAll(res.Body)
+	s := string(bytesBody)
+
+	startMarker := `window.__DZR_APP_STATE__ = `
+	endMarker := `</script>`
+	startIdx := strings.Index(s, startMarker)
+	if startIdx < 0 {
+		return resTracks{}, fmt.Errorf("could not find app state in playlist page")
+	}
+	endIdx := strings.Index(s[startIdx:], endMarker)
+	if endIdx < 0 {
+		return resTracks{}, fmt.Errorf("could not find script end in playlist page")
+	}
+	sData := s[startIdx+len(startMarker) : startIdx+endIdx]
+
+	var generic interface{}
+	if err := json.NewDecoder(strings.NewReader(sData)).Decode(&generic); err != nil {
+		return resTracks{}, err
+	}
+
+	// recursive search for an array of track-like objects
+	var found []interface{}
+	var walk func(interface{}) bool
+	walk = func(n interface{}) bool {
+		switch v := n.(type) {
+		case map[string]interface{}:
+			for _, val := range v {
+				if walk(val) {
+					return true
+				}
+			}
+		case []interface{}:
+			if len(v) > 0 {
+				if first, ok := v[0].(map[string]interface{}); ok {
+					// heuristic: track object should have an "id" or "SNG_ID"
+					if _, hasId := first["id"]; hasId {
+						found = v
+						return true
+					}
+					if _, hasSng := first["SNG_ID"]; hasSng {
+						// album song info uses SNG_ID, convert later
+						found = v
+						return true
+					}
+				}
+			}
+			// continue search inside array elements
+			for _, elem := range v {
+				if walk(elem) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	walk(generic)
+	if found == nil {
+		return resTracks{}, fmt.Errorf("no track array found in playlist page")
+	}
+
+	// Convert found array into []resTrack robustly (tolerate type variations)
+	tracks := make([]resTrack, 0, len(found))
+	for _, el := range found {
+		m, ok := el.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		var t resTrack
+
+		// id (float64 or string)
+		if v, ok := m["id"]; ok {
+			switch vv := v.(type) {
+			case float64:
+				t.Id = int64(vv)
+			case string:
+				if idInt, err := strconv.ParseInt(vv, 10, 64); err == nil {
+					t.Id = idInt
+				}
+			}
+		} else if v, ok := m["SNG_ID"]; ok {
+			if s, ok2 := v.(string); ok2 {
+				if idInt, err := strconv.ParseInt(s, 10, 64); err == nil {
+					t.Id = idInt
+				}
+			}
+		}
+
+		// title
+		if v, ok := m["title"]; ok {
+			if s, ok2 := v.(string); ok2 {
+				t.Title = s
+			}
+		} else if v, ok := m["SNG_TITLE"]; ok {
+			if s, ok2 := v.(string); ok2 {
+				t.Title = s
+			}
+		} else if v, ok := m["SngTitle"]; ok {
+			if s, ok2 := v.(string); ok2 {
+				t.Title = s
+			}
+		}
+
+		// md5 image
+		if v, ok := m["md5_image"]; ok {
+			if s, ok2 := v.(string); ok2 {
+				t.Md5Image = s
+			}
+		} else if v, ok := m["MD5_ORIGIN"]; ok {
+			if s, ok2 := v.(string); ok2 {
+				t.Md5Image = s
+			}
+		}
+
+		// album title/md5
+		if alb, ok := m["album"]; ok {
+			if amap, ok2 := alb.(map[string]interface{}); ok2 {
+				if at, ok3 := amap["title"]; ok3 {
+					if s, ok4 := at.(string); ok4 {
+						t.Album.Title = s
+					}
+				}
+				if md, ok3 := amap["md5_image"]; ok3 {
+					if s, ok4 := md.(string); ok4 {
+						t.Album.Md5Image = s
+					}
+				}
+			}
+		} else {
+			if v, ok := m["ALB_TITLE"]; ok {
+				if s, ok2 := v.(string); ok2 {
+					t.Album.Title = s
+				}
+			}
+		}
+
+		// duration (number or string)
+		if v, ok := m["duration"]; ok {
+			switch vv := v.(type) {
+			case float64:
+				t.Duration = int(vv)
+			case string:
+				if d, err := strconv.Atoi(vv); err == nil {
+					t.Duration = d
+				}
+			}
+		} else if v, ok := m["DURATION"]; ok {
+			if s, ok2 := v.(string); ok2 {
+				if d, err := strconv.Atoi(s); err == nil {
+					t.Duration = d
+				}
+			}
+		}
+
+		// best-effort artist
+		if art, ok := m["artist"]; ok {
+			if amap, ok2 := art.(map[string]interface{}); ok2 {
+				if idv, ok3 := amap["id"]; ok3 {
+					switch iv := idv.(type) {
+					case float64:
+						t.Artist.Id = int64(iv)
+					case string:
+						if idInt, err := strconv.ParseInt(iv, 10, 64); err == nil {
+							t.Artist.Id = idInt
+						}
+					}
+				}
+				if namev, ok3 := amap["name"]; ok3 {
+					if s, ok4 := namev.(string); ok4 {
+						t.Artist.Name = s
+					}
+				}
+			}
+		}
+
+		tracks = append(tracks, t)
+	}
+
+	return resTracks{Data: tracks, Total: len(tracks)}, nil
+}
+
 func getSongUrlData(trackToken string, format string, config configuration) (resSongUrl, error) {
 	url := "https://media.deezer.com/v1/get_url"
 	bodyJsonStr := fmt.Sprintf(`{"license_token":"%s","media":[{"type":"FULL","formats":[{"cipher":"BF_CBC_STRIPE","format":"%s"}]}],"track_tokens":["%s"]}`, config.LicenseToken, format, trackToken)
@@ -566,7 +891,11 @@ func getSongUrlData(trackToken string, format string, config configuration) (res
 
 	if res.StatusCode != 200 {
 		bytes, _ := io.ReadAll(res.Body)
-		log.Println(string(bytes))
+		bstr := string(bytes)
+		if len(bstr) > 200 {
+			bstr = bstr[:200] + "..."
+		}
+		log.Printf("non-200 get_url response (truncated): %s", bstr)
 		return resSongUrl{}, fmt.Errorf("got status code %d", res.StatusCode)
 	}
 
@@ -598,7 +927,11 @@ func getPing(config configuration) (resPing, error) {
 
 	if res.StatusCode != 200 {
 		bytes, _ := io.ReadAll(res.Body)
-		log.Println(string(bytes))
+		bstr := string(bytes)
+		if len(bstr) > 200 {
+			bstr = bstr[:200] + "..."
+		}
+		log.Printf("non-200 ping response (truncated): %s", bstr)
 		return resPing{}, fmt.Errorf("got status code %d", res.StatusCode)
 	}
 
@@ -812,7 +1145,11 @@ func downloadSong(url string, songPath string, songId string, attempt int, confi
 
 	if res.StatusCode != 200 {
 		bytes, _ := io.ReadAll(res.Body)
-		log.Println(string(bytes))
+		bstr := string(bytes)
+		if len(bstr) > 200 {
+			bstr = bstr[:200] + "..."
+		}
+		log.Printf("non-200 download response (truncated): %s", bstr)
 		return fmt.Errorf("got status code %d", res.StatusCode)
 	}
 
@@ -1038,6 +1375,9 @@ func printUsage() {
 	log.Println("To download one or more albums:")
 	log.Println("\tdeezer-flac-download album <album_id> [<album_id>...]")
 	log.Println("")
+	log.Println("To download one or more playlists:")
+	log.Println("\tdeezer-flac-download playlist <playlist_id> [<playlist_id>...]")
+	log.Println("")
 	log.Println("See README for full details.")
 }
 
@@ -1142,6 +1482,101 @@ func main() {
 			}
 			log.Print("Album download succeeded: " + albumId + "\n\n")
 			logFile.Write([]byte("Album download succeeded: " + albumId + "\n"))
+			log.Print("Album download succeeded: " + albumId + "\n\n")
+			logFile.Write([]byte("Album download succeeded: " + albumId + "\n"))
+		}
+	} else if command == "playlist" {
+	playlist_loop:
+		for idx, playlistId := range args {
+			log.Printf("[%03d/%03d] Downloading playlist %s\n", idx+1, len(args), playlistId)
+			playlist, err := getPlaylist(playlistId, config)
+			if err != nil {
+				log.Fatalf("error getting playlist: %s\n", err)
+			}
+
+			// Try to obtain tracks via API; if empty, parse playlist page
+			tracks := playlist.Tracks
+			if tracks.Total == 0 || len(tracks.Data) == 0 {
+				tracksParsed, err2 := getPlaylistSongs(playlistId, config)
+				if err2 == nil {
+					tracks = tracksParsed
+				} else {
+					log.Printf("could not extract playlist tracks from page: %v\n", err2)
+				}
+			}
+
+			for _, track := range tracks.Data {
+				songInfo, err := getSongInfo(track.Id, config)
+				if err != nil {
+					log.Fatalf("error getting song info: %s\n", err)
+				}
+				song := songInfo.Data
+
+				album, err := getAlbum(song.AlbId, config)
+				if err != nil {
+					log.Fatalf("error getting album: %s\n", err)
+				}
+
+				// Try FLAC first, then fall back to MP3 variants
+				formats := []string{"FLAC", "MP3_320", "MP3_256", "MP3_128"}
+				var selectedFormat string
+				var songUrl string
+				for _, f := range formats {
+					songUrlDataTry, errTry := getSongUrlData(song.TrackToken, f, config)
+					if errTry != nil {
+						continue
+					}
+					songUrlTry, errTry2 := getSongUrl(songUrlDataTry)
+					if errTry2 != nil {
+						continue
+					}
+					selectedFormat = f
+					songUrl = songUrlTry
+					break
+				}
+
+				if selectedFormat == "" {
+					msg := fmt.Sprintf("error getting URL for song \"%s\" by %s from \"%s\": no available formats\n",
+						song.SngTitle, song.ArtName, song.AlbTitle)
+					log.Print(msg)
+					logFile.Write([]byte(msg))
+					log.Print("Playlist download failed: " + playlistId + "\n\n")
+					logFile.Write([]byte("Playlist download failed: " + playlistId + "\n"))
+					continue playlist_loop
+				}
+
+				songPath := getSongPath(song, album, config, selectedFormat)
+				songDir := path.Dir(songPath)
+				coverFilePath := songDir + "/cover.jpg"
+
+				err = ensureSongDirectoryExists(songPath, album.CoverXl)
+				if err != nil {
+					log.Fatalf("error preparing directory for song: %s\n", err)
+				}
+				err = downloadSong(songUrl, songPath, song.SngId, 0, config)
+				if err != nil {
+					log.Fatalf("error downloading song: %s\n", err)
+				}
+
+				if strings.ToUpper(selectedFormat) == "FLAC" {
+					err = addTags(song, songPath, album)
+					if err != nil {
+						log.Fatalf("error adding tags to song: %s\n", err)
+					}
+					err = addCover(songPath, coverFilePath)
+					if err != nil {
+						log.Fatalf("error adding cover image to song: %s\n", err)
+					}
+				} else {
+					err = addID3Tags(song, songPath, coverFilePath, album)
+					if err != nil {
+						log.Fatalf("error adding ID3 tags to MP3: %s\n", err)
+					}
+					log.Printf("Downloaded %s as %s and added ID3 tags", song.SngTitle, selectedFormat)
+				}
+			}
+			log.Print("Playlist download succeeded: " + playlistId + "\n\n")
+			logFile.Write([]byte("Playlist download succeeded: " + playlistId + "\n"))
 		}
 	} else {
 		printUsage()
