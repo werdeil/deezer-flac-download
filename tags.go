@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strconv"
 
 	id3v2 "github.com/bogem/id3v2"
 	"github.com/go-flac/flacpicture"
@@ -76,7 +77,13 @@ func addID3Tags(song resSongInfoData, mp3Path string, coverPath string, album re
 		tag.AddTextFrame(tag.CommonID("Content type"), tag.DefaultEncoding(), genre)
 	}
 	if song.TrackNumber != "" {
-		tag.AddTextFrame(tag.CommonID("Track number/Position in set"), tag.DefaultEncoding(), song.TrackNumber)
+		trckValue := song.TrackNumber
+		if album.NbTracks > 0 {
+			trckValue = song.TrackNumber + "/" + strconv.Itoa(album.NbTracks)
+		}
+		tag.AddTextFrame(tag.CommonID("Track number/Position in set"), tag.DefaultEncoding(), trckValue)
+	} else if album.NbTracks > 0 {
+		tag.AddTextFrame(tag.CommonID("Track number/Position in set"), tag.DefaultEncoding(), strconv.Itoa(album.NbTracks))
 	}
 	if song.DiskNumber != "" {
 		tag.AddTextFrame(tag.CommonID("Part of a set"), tag.DefaultEncoding(), song.DiskNumber)
@@ -142,6 +149,9 @@ func addTags(song resSongInfoData, path string, album resAlbum) error {
 	cmts.Add("ALBUMARTIST", album.Artist.Name)
 	cmts.Add("COMPOSER", composer)
 	cmts.Add("TRACKNUMBER", song.TrackNumber)
+	if album.NbTracks > 0 {
+		cmts.Add("TRACKTOTAL", strconv.Itoa(album.NbTracks))
+	}
 	cmts.Add("DISCNUMBER", song.DiskNumber)
 	cmts.Add("COPYRIGHT", song.Copyright)
 	// Add genre (from album) to Vorbis comments
