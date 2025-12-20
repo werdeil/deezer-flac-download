@@ -1,4 +1,4 @@
-module github.com/sferaggio/deezer-flac-download
+module github.com/werdeil/deezer-music-download
 
 go 1.19
 

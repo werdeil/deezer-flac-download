@@ -1,4 +1,4 @@
-# deezer-flac-download
+# deezer-music-download
 
 A program to freely download Deezer Audio files. Tested and working in December 2025.
 Verified to produce the same audio as other downloaders being used for files present on the internet. A paid Deezer account is required.
@@ -9,7 +9,7 @@ The program downloads cover art and metadata tags: for MP3s it writes ID3v2 tags
 
 ## Setup
 
-Create a file at `~/.config/deezer-flac-download/config.toml` based on
+Create a file at `~/.config/deezer-music-download/config.toml` based on
 `example_config.toml`. The contents are as follows:
 
 * `arl`: Can be obtained from the `arl` cookie in your browser.

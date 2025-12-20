@@ -19,7 +19,7 @@ func getConfig() (configuration, error) {
 		}
 		configDir = homedir + "/.config/"
 	}
-	configPath := configDir + "/deezer-flac-download/config.toml"
+	configPath := configDir + "/deezer-music-download/config.toml"
 
 	_, err = toml.DecodeFile(configPath, &config)
 	if err != nil {

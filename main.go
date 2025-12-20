@@ -52,13 +52,13 @@ func makeReq(method, url string, body io.Reader, config configuration) (*http.Re
 }
 
 func printUsage() {
-	log.Println("deezer-flac-download is a program to freely download Deezer FLAC files.")
+	log.Println("deezer-music-download is a program to freely download Deezer music files.")
 	log.Println("")
 	log.Println("To download one or more albums:")
-	log.Println("\tdeezer-flac-download album <album_id> [<album_id>...]")
+	log.Println("\tdeezer-music-download album <album_id> [<album_id>...]")
 	log.Println("")
 	log.Println("To download one or more playlists:")
-	log.Println("\tdeezer-flac-download playlist <playlist_id> [<playlist_id>...]")
+	log.Println("\tdeezer-music-download playlist <playlist_id> [<playlist_id>...]")
 	log.Println("")
 	log.Println("See README for full details.")
 }
@@ -75,7 +75,7 @@ func main() {
 	command := os.Args[1]
 	args := os.Args[2:]
 
-	logFilePath := os.TempDir() + "/deezer-flac-download.log"
+	logFilePath := os.TempDir() + "/deezer-music-download.log"
 	logFile, err := os.Create(logFilePath)
 	if err != nil {
 		log.Fatalf("error creating log file %s: %s\n", logFilePath, err)
