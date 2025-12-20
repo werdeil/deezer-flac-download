@@ -87,11 +87,12 @@ func main() {
 		log.Fatalf("error reading config file: %s\n", err)
 	}
 
-	if command == "album" {
+	switch command {
+	case "album":
 		processAlbums(args, config, logFile)
-	} else if command == "playlist" {
+	case "playlist":
 		processPlaylists(args, config, logFile)
-	} else {
+	default:
 		printUsage()
 		return
 	}
