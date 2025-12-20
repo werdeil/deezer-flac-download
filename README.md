@@ -1,14 +1,11 @@
 # deezer-flac-download
 
-A program to freely download Deezer FLAC files. Tested and working in October 2022.
-Verified to produce the same audio as other downloaders being used for files present
-on the internet. A paid Deezer account is required.
+A program to freely download Deezer Audio files. Tested and working in December 2025.
+Verified to produce the same audio as other downloaders being used for files present on the internet. A paid Deezer account is required.
  
-Note: The tool will now automatically fall back to downloading MP3 files when
-the FLAC format is not available for a given track. In that case the downloader
-will try `FLAC` first, then `MP3_320`, `MP3_256`, and finally `MP3_128`. When an
-The program downloads cover art and metadata tags: for MP3s it writes ID3v2
-tags and embeds the cover image into the MP3 file, and for FLACs it embeds the cover art and metadata.
+Note: The tool will now automatically fall back to downloading MP3 files when the FLAC format is not available for a given track. In that case the downloader will try `FLAC` first, then `MP3_320`, `MP3_256`, and finally `MP3_128`. 
+
+The program downloads cover art and metadata tags: for MP3s it writes ID3v2 tags and embeds the cover image into the MP3 file, and for FLACs it embeds the cover art and metadata.
 
 ## Setup
 
@@ -31,8 +28,6 @@ Create a file at `~/.config/deezer-flac-download/config.toml` based on
 
 You can also download multiple albums: `go run . album 1234 2345 3456`.
 
-## FAQ
+## Note
 
-**How do I use this on Windows?**
-
-lol
+Recent additions to this repository have been made with the help of an AI assistant (Copilot).
