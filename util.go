@@ -103,11 +103,9 @@ func getSongPath(song resSongInfoData, album resAlbum, config configuration, for
 		panic(err)
 	}
 	ext := "flac"
-	label := "[WEB FLAC]"
 	if strings.HasPrefix(strings.ToUpper(format), "MP3") {
 		ext = "mp3"
-		label = "[WEB MP3]"
 	}
-	return fmt.Sprintf("%s/%s/%s - %s %s/%02d - %s.%s", config.DestDir,
-		cleanArtist, cleanArtist, cleanAlbumTitle, label, trackNum, cleanSongTitle, ext)
+	return fmt.Sprintf("%s/%s/%s - %s/%02d - %s.%s", config.DestDir,
+		cleanArtist, cleanArtist, cleanAlbumTitle, trackNum, cleanSongTitle, ext)
 }
