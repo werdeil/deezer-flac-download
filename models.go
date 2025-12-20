@@ -321,6 +321,7 @@ type resAlbum struct {
 	Genres                resAlbumGenres        `json:"genres"`
 	Label                 string                `json:"label"`
 	NbTracks              int                   `json:"nb_tracks"`
+	NbDiscs               int                   `json:"nb_discs"`
 	Duration              int                   `json:"duration"`
 	Fans                  int                   `json:"fans"`
 	ReleaseDate           string                `json:"release_date"`
@@ -350,6 +351,6 @@ type resPing struct {
 		Session         string `json:"SESSION"`
 		UserId          int    `json:"USER_ID"`
 		Checkform       string `json:"CHECKFORM"`
-		ServerTimestamp int    `json:"CHECKFORM"`
+		ServerTimestamp int    `json:"SERVER_TIMESTAMP"`
 	} `json:"results"`
 }

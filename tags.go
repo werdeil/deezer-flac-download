@@ -86,7 +86,13 @@ func addID3Tags(song resSongInfoData, mp3Path string, coverPath string, album re
 		tag.AddTextFrame(tag.CommonID("Track number/Position in set"), tag.DefaultEncoding(), strconv.Itoa(album.NbTracks))
 	}
 	if song.DiskNumber != "" {
-		tag.AddTextFrame(tag.CommonID("Part of a set"), tag.DefaultEncoding(), song.DiskNumber)
+		discValue := song.DiskNumber
+		if album.NbDiscs > 0 {
+			discValue = song.DiskNumber + "/" + strconv.Itoa(album.NbDiscs)
+		}
+		tag.AddTextFrame(tag.CommonID("Part of a set"), tag.DefaultEncoding(), discValue)
+	} else if album.NbDiscs > 0 {
+		tag.AddTextFrame(tag.CommonID("Part of a set"), tag.DefaultEncoding(), strconv.Itoa(album.NbDiscs))
 	}
 	if song.Copyright != "" {
 		tag.AddTextFrame(tag.CommonID("Copyright message"), tag.DefaultEncoding(), song.Copyright)
@@ -153,6 +159,9 @@ func addTags(song resSongInfoData, path string, album resAlbum) error {
 		cmts.Add("TRACKTOTAL", strconv.Itoa(album.NbTracks))
 	}
 	cmts.Add("DISCNUMBER", song.DiskNumber)
+	if album.NbDiscs > 0 {
+		cmts.Add("DISCTOTAL", strconv.Itoa(album.NbDiscs))
+	}
 	cmts.Add("COPYRIGHT", song.Copyright)
 	// Add genre (from album) to Vorbis comments
 	genre := getAlbumGenres(album)
