@@ -22,11 +22,21 @@ Create a file at `~/.config/deezer-flac-download/config.toml` based on
 
 ## Usage
 
+### Albums
+
 1. Find the album's ID by navigating to it and looking at the URL. It's the
   string of numbers.
 1. `go run . album <album_id>`
 
 You can also download multiple albums: `go run . album 1234 2345 3456`.
+
+### Playlists
+
+1. Find the playlist's ID by navigating to it and looking at the URL — it's the
+  string of numbers.
+1. `go run . playlist <playlist_id>`
+
+You can also download multiple playlists in one command: `go run . playlist 1234 2345`.
 
 ## Note
 
