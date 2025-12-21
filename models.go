@@ -1,5 +1,7 @@
 package main
 
+import "encoding/json"
+
 // Data models extracted from the original main.go
 
 type configuration struct {
@@ -81,12 +83,30 @@ type resSongInfoRights struct {
 	StreamSub          string `json:"STREAM_SUB"`
 }
 
+type CustomContributors struct {
+	Data []resSongInfoContributors
+}
+
+func (c *CustomContributors) UnmarshalJSON(data []byte) error {
+	if err := json.Unmarshal(data, &c.Data); err == nil {
+		return nil
+	}
+
+	var single resSongInfoContributors
+	if err := json.Unmarshal(data, &single); err != nil {
+		return err
+	}
+
+	c.Data = []resSongInfoContributors{single}
+	return nil
+}
+
 type resSongInfoContributors struct {
 	MainArtist     []string `json:"main_artist"`
 	Composer       []string `json:"composer"`
 	Featuring      []string `json:"featuring"`
 	Narrator       []string `json:"narrator"`
-	MusicPublisher []string `json:"music publisher"`
+	MusicPublisher []string `json:"music_publisher"`
 }
 
 type resSongInfoExplicitTrackContent struct {
@@ -137,7 +157,7 @@ type resSongInfoData struct {
 	Rights               resSongInfoRights               `json:"RIGHTS"`
 	Isrc                 string                          `json:"ISRC"`
 	HierarchicalTitle    string                          `json:"HIERARCHICAL_TITLE"`
-	SngContributors      resSongInfoContributors         `json:"SNG_CONTRIBUTORS"`
+	SngContributors      CustomContributors              `json:"SNG_CONTRIBUTORS"` // ✅ Type personnalisé
 	LyricsId             int                             `json:"LYRICS_ID"`
 	ExplicitTrackContent resSongInfoExplicitTrackContent `json:"EXPLICIT_TRACK_CONTENT"`
 	Copyright            string                          `json:"COPYRIGHT"`

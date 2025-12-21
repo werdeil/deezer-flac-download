@@ -27,15 +27,13 @@ func getArtist(song resSongInfoData) string {
 }
 
 func getComposer(song resSongInfoData) string {
-	if song.SngContributors.Composer != nil {
-		composers := make([]string, 0)
-		for _, name := range song.SngContributors.Composer {
-			composers = append(composers, name)
+	if len(song.SngContributors.Data) > 0 {
+		contributors := song.SngContributors.Data[0]
+		if len(contributors.Composer) > 0 {
+			return strings.Join(contributors.Composer, ", ")
 		}
-		return strings.Join(composers, ", ")
-	} else {
-		return ""
 	}
+	return ""
 }
 
 // extractYear returns the 4-digit year from a date string if possible.
